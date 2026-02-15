@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import joblib
 import numpy as np
+import os
 from pathlib import Path
 
 # -----------------------------------
@@ -9,17 +10,30 @@ from pathlib import Path
 # -----------------------------------
 st.set_page_config(page_title="Thyroid Prediction App", layout="centered")
 
-# Base paths (adjust if you move files)
-BASE = Path("/Users/purushottampandey/Documents/V S Code/MLASSIGNMENT")
-MODEL_PATH = BASE / "thyroid_rf_model.pkl"
-SCALER_PATH = BASE / "scaler.pkl"
-ENCODER_PATH = BASE / "label_encoder.pkl"
+# Base paths (use paths relative to this file at runtime)
+# This makes the app portable between local dev and deployments.
+BASE = Path(__file__).resolve().parent
+MODEL_PATH = Path(os.getenv("MODEL_PATH", BASE / "thyroid_rf_model.pkl"))
+SCALER_PATH = Path(os.getenv("SCALER_PATH", BASE / "scaler.pkl"))
+ENCODER_PATH = Path(os.getenv("ENCODER_PATH", BASE / "label_encoder.pkl"))
 
 # -----------------------------------
 # Load Model + Scaler + Encoders (cached)
 # -----------------------------------
 @st.cache_resource
 def load_artifacts():
+    # Helpful runtime checks and clear errors when files are missing.
+    missing = []
+    for name, path in (("model", MODEL_PATH), ("scaler", SCALER_PATH), ("encoder", ENCODER_PATH)):
+        if not Path(path).exists():
+            missing.append((name, Path(path)))
+
+    if missing:
+        # Report missing files to the app UI and raise a clear FileNotFoundError.
+        missing_msgs = ", ".join([f"{n} at {p}" for n, p in missing])
+        st.error(f"Required artifact(s) not found: {missing_msgs}")
+        raise FileNotFoundError(f"Missing artifact(s): {missing_msgs}")
+
     model = joblib.load(MODEL_PATH)
     scaler = joblib.load(SCALER_PATH)
     enc = None
